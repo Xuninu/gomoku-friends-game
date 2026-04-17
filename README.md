@@ -1,5 +1,7 @@
 # Gomoku Friends
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Xuninu/gomoku-friends-game)
+
 A lightweight multiplayer Gomoku game you can share with friends.
 
 ## Features
@@ -11,6 +13,15 @@ A lightweight multiplayer Gomoku game you can share with friends.
 - Restart game support
 - Mobile-friendly UI
 
+## One-Click Deploy
+
+1. Open this repository README and click `Deploy to Render`.
+2. Sign in to Render and confirm the Blueprint deploy.
+3. Wait for build completion and copy your service URL (for example `https://xxx.onrender.com`).
+4. Send that URL to your friend.
+
+Your friend only needs a browser, with no extra setup.
+
 ## Local Run
 
 Prerequisite: Node.js 18+.
@@ -21,16 +32,3 @@ npm start
 ```
 
 Open [http://localhost:3000](http://localhost:3000), create a room, and share the room code or copied URL.
-
-## Share Online (Render Blueprint)
-
-This repo includes `render.yaml`, so deployment is straightforward.
-
-1. Push this project to your GitHub repository.
-2. Open [Render](https://render.com/) and sign in.
-3. Click `New` -> `Blueprint`.
-4. Select your GitHub repository and deploy.
-5. Wait for build to finish, then copy the generated URL (for example `https://xxx.onrender.com`).
-6. Send this URL to your friend. They can open and play directly in browser.
-
-Both players use the same website URL and the same room code.
