@@ -1,29 +1,29 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gomoku Friends</title>
+    <title>五子棋联机对战</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
     <main class="page">
       <section class="panel start-panel" id="startPanel">
-        <h1>Gomoku Friends</h1>
-        <p class="subtitle">Create a room, share the code, and battle with your friend in real time.</p>
+        <h1>五子棋联机对战</h1>
+        <p class="subtitle">创建房间后把链接发给好友，好友打开网页输入同一房间码即可开局。</p>
 
         <label class="field">
-          <span>Nickname</span>
-          <input id="nameInput" type="text" maxlength="20" placeholder="Player" />
+          <span>你的昵称</span>
+          <input id="nameInput" type="text" maxlength="20" placeholder="请输入昵称" />
         </label>
 
         <div class="actions">
-          <button id="createRoomBtn" class="btn btn-primary">Create Room</button>
+          <button id="createRoomBtn" class="btn btn-primary">创建房间</button>
         </div>
 
         <div class="join-row">
-          <input id="roomInput" type="text" maxlength="6" placeholder="Room code" />
-          <button id="joinRoomBtn" class="btn">Join Room</button>
+          <input id="roomInput" type="text" maxlength="6" placeholder="输入房间码（6位）" />
+          <button id="joinRoomBtn" class="btn">加入房间</button>
         </div>
 
         <p id="startError" class="message error"></p>
@@ -32,24 +32,24 @@
       <section class="panel game-panel hidden" id="gamePanel">
         <header class="topbar">
           <div>
-            <p class="meta">Room</p>
+            <p class="meta">房间号</p>
             <p id="roomLabel" class="code">------</p>
           </div>
           <div class="top-actions">
-            <button id="restartBtn" class="btn">Restart</button>
-            <button id="undoBtn" class="btn">Undo</button>
-            <button id="leaveBtn" class="btn">Leave</button>
+            <button id="restartBtn" class="btn">重新开局</button>
+            <button id="undoBtn" class="btn">悔棋</button>
+            <button id="leaveBtn" class="btn">退出房间</button>
           </div>
         </header>
 
         <div class="share-row">
           <input id="shareLink" type="text" readonly />
-          <button id="copyBtn" class="btn btn-primary">Copy Link</button>
+          <button id="copyBtn" class="btn btn-primary">复制链接</button>
         </div>
 
         <div class="player-row">
-          <p id="blackPlayer" class="chip chip-black">Black: waiting...</p>
-          <p id="whitePlayer" class="chip chip-white">White: waiting...</p>
+          <p id="blackPlayer" class="chip chip-black">黑棋：等待加入...</p>
+          <p id="whitePlayer" class="chip chip-white">白棋：等待加入...</p>
         </div>
 
         <p id="statusText" class="status"></p>
