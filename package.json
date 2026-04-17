@@ -1,0 +1,26 @@
+{
+  "name": "gomoku-friends",
+  "version": "1.0.0",
+  "description": "A shareable multiplayer Gomoku game for friends.",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "gomoku",
+    "socket.io",
+    "multiplayer",
+    "game"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
