@@ -27,7 +27,7 @@ app.get("/health", (_req, res) => {
 
 function sanitizeName(raw) {
   const value = typeof raw === "string" ? raw.trim() : "";
-  return (value || "Player").slice(0, 20);
+  return (value || "玩家").slice(0, 20);
 }
 
 function normalizeRoomId(raw) {
@@ -153,18 +153,18 @@ function removePlayerFromRoom(socket) {
     return;
   }
 
-  io.to(roomId).emit("notice", "A player has left the room.");
+  io.to(roomId).emit("notice", "有玩家离开了房间。");
   emitRoomState(roomId);
 }
 
 function joinRoom(socket, roomId, name) {
   const room = rooms.get(roomId);
   if (!room) {
-    return { ok: false, error: "Room not found." };
+    return { ok: false, error: "房间不存在。" };
   }
 
   if (room.players.length >= MAX_PLAYERS) {
-    return { ok: false, error: "Room is full." };
+    return { ok: false, error: "房间人数已满。" };
   }
 
   removePlayerFromRoom(socket);
@@ -183,7 +183,7 @@ function joinRoom(socket, roomId, name) {
   socket.data.roomId = roomId;
   socket.data.color = color;
 
-  io.to(roomId).emit("notice", `${player.name} joined the room.`);
+  io.to(roomId).emit("notice", `${player.name} 已加入房间。`);
   emitRoomState(roomId);
 
   return {
@@ -214,7 +214,7 @@ io.on("connection", (socket) => {
   socket.on("join_room", (payload, callback) => {
     const roomId = normalizeRoomId(payload?.roomId);
     if (!roomId) {
-      callback?.({ ok: false, error: "Please enter a valid room code." });
+      callback?.({ ok: false, error: "请输入有效的房间码。" });
       return;
     }
 
@@ -225,7 +225,7 @@ io.on("connection", (socket) => {
   socket.on("place_stone", (payload, callback) => {
     const roomId = socket.data.roomId;
     if (!roomId || !rooms.has(roomId)) {
-      callback?.({ ok: false, error: "You are not in a room." });
+      callback?.({ ok: false, error: "你当前不在房间内。" });
       return;
     }
 
@@ -233,17 +233,17 @@ io.on("connection", (socket) => {
     const player = findPlayer(room, socket.id);
 
     if (!player) {
-      callback?.({ ok: false, error: "Player not found." });
+      callback?.({ ok: false, error: "未找到玩家信息。" });
       return;
     }
 
     if (room.winner !== 0) {
-      callback?.({ ok: false, error: "Game is over. Restart to play again." });
+      callback?.({ ok: false, error: "对局已结束，请重新开局。" });
       return;
     }
 
     if (room.currentTurn !== player.color) {
-      callback?.({ ok: false, error: "Not your turn." });
+      callback?.({ ok: false, error: "还没轮到你落子。" });
       return;
     }
 
@@ -251,13 +251,13 @@ io.on("connection", (socket) => {
     const col = Number(payload?.col);
 
     if (!Number.isInteger(row) || !Number.isInteger(col) || !inBounds(row, col)) {
-      callback?.({ ok: false, error: "Invalid move." });
+      callback?.({ ok: false, error: "落子位置无效。" });
       return;
     }
 
     const idx = indexOfCell(row, col);
     if (room.board[idx] !== 0) {
-      callback?.({ ok: false, error: "This position is already occupied." });
+      callback?.({ ok: false, error: "该位置已有棋子。" });
       return;
     }
 
@@ -279,7 +279,7 @@ io.on("connection", (socket) => {
   socket.on("restart_game", (_payload, callback) => {
     const roomId = socket.data.roomId;
     if (!roomId || !rooms.has(roomId)) {
-      callback?.({ ok: false, error: "You are not in a room." });
+      callback?.({ ok: false, error: "你当前不在房间内。" });
       return;
     }
 
@@ -290,32 +290,32 @@ io.on("connection", (socket) => {
     room.lastMove = null;
     room.moveHistory = [];
     emitRoomState(roomId);
-    io.to(roomId).emit("notice", "Game restarted.");
+    io.to(roomId).emit("notice", "已重新开局。");
     callback?.({ ok: true });
   });
 
   socket.on("undo_move", (payload, callback) => {
     const roomId = socket.data.roomId;
     if (!roomId || !rooms.has(roomId)) {
-      callback?.({ ok: false, error: "You are not in a room." });
+      callback?.({ ok: false, error: "你当前不在房间内。" });
       return;
     }
 
     const room = rooms.get(roomId);
     const player = findPlayer(room, socket.id);
     if (!player) {
-      callback?.({ ok: false, error: "Player not found." });
+      callback?.({ ok: false, error: "未找到玩家信息。" });
       return;
     }
 
     const password = typeof payload?.password === "string" ? payload.password.trim() : "";
     if (password !== UNDO_PASSWORD) {
-      callback?.({ ok: false, error: "Invalid undo password." });
+      callback?.({ ok: false, error: "悔棋密码错误。" });
       return;
     }
 
     if (!Array.isArray(room.moveHistory) || room.moveHistory.length === 0) {
-      callback?.({ ok: false, error: "No move to undo." });
+      callback?.({ ok: false, error: "当前没有可悔的棋步。" });
       return;
     }
 
@@ -327,7 +327,7 @@ io.on("connection", (socket) => {
     room.lastMove = room.moveHistory.length > 0 ? room.moveHistory[room.moveHistory.length - 1] : null;
 
     emitRoomState(roomId);
-    io.to(roomId).emit("notice", `${player.name} used undo.`);
+    io.to(roomId).emit("notice", `${player.name} 发起了悔棋。`);
     callback?.({ ok: true });
   });
 

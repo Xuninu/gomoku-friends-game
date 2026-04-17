@@ -41,17 +41,17 @@ const state = {
 
 function colorName(color) {
   if (color === 1) {
-    return "Black";
+    return "黑棋";
   }
   if (color === 2) {
-    return "White";
+    return "白棋";
   }
-  return "Unknown";
+  return "未知";
 }
 
 function playerName() {
   const value = nameInput.value.trim();
-  return value || "Player";
+  return value || "玩家";
 }
 
 function setStartError(message = "") {
@@ -72,27 +72,27 @@ function updatePlayersUI() {
   const black = state.players.find((p) => p.color === 1);
   const white = state.players.find((p) => p.color === 2);
 
-  blackPlayer.textContent = `Black: ${black ? black.name : "waiting..."}`;
-  whitePlayer.textContent = `White: ${white ? white.name : "waiting..."}`;
+  blackPlayer.textContent = `黑棋：${black ? black.name : "等待加入..."}`;
+  whitePlayer.textContent = `白棋：${white ? white.name : "等待加入..."}`;
 }
 
 function updateStatusUI() {
   if (state.winner !== 0) {
-    const winText = state.winner === state.myColor ? "You win!" : `${colorName(state.winner)} wins!`;
-    statusText.textContent = `Game over: ${winText}`;
+    const winText = state.winner === state.myColor ? "你赢了！" : `${colorName(state.winner)}获胜`;
+    statusText.textContent = `对局结束：${winText}`;
     return;
   }
 
   if (state.players.length < 2) {
-    statusText.textContent = "Waiting for another player to join...";
+    statusText.textContent = "等待另一位玩家加入房间...";
     return;
   }
 
   const turnLabel = colorName(state.currentTurn);
   if (state.currentTurn === state.myColor) {
-    statusText.textContent = `Your turn (${turnLabel})`;
+    statusText.textContent = `轮到你落子（${turnLabel}）`;
   } else {
-    statusText.textContent = `Opponent's turn (${turnLabel})`;
+    statusText.textContent = `对手回合（${turnLabel}）`;
   }
 }
 
@@ -205,14 +205,14 @@ function leaveGame() {
 
 function handleJoinResponse(response) {
   if (!response?.ok) {
-    setStartError(response?.error || "Unable to join room.");
+    setStartError(response?.error || "加入房间失败。");
     return;
   }
 
   state.roomId = response.roomId;
   state.myColor = response.color;
   setStartError("");
-  setNotice(`You are ${colorName(state.myColor)}.`);
+  setNotice(`你已进入房间，执${colorName(state.myColor)}。`);
   enterGame();
 }
 
@@ -244,32 +244,32 @@ copyBtn.addEventListener("click", async () => {
 
   try {
     await navigator.clipboard.writeText(shareLink.value);
-    setNotice("Share link copied.");
+    setNotice("链接已复制，快发给好友吧。");
   } catch (_err) {
-    setNotice("Clipboard unavailable. Please copy manually.");
+    setNotice("无法调用剪贴板，请手动复制。");
   }
 });
 
 restartBtn.addEventListener("click", () => {
   socket.emit("restart_game", {}, (response) => {
     if (!response?.ok) {
-      setNotice(response?.error || "Failed to restart game.");
+      setNotice(response?.error || "重新开局失败。");
     }
   });
 });
 
 undoBtn.addEventListener("click", () => {
-  const password = window.prompt("Please input undo password");
+  const password = window.prompt("请输入悔棋密码");
   if (password === null) {
     return;
   }
 
   socket.emit("undo_move", { password }, (response) => {
     if (!response?.ok) {
-      setNotice(response?.error || "Failed to undo.");
+      setNotice(response?.error || "悔棋失败。");
       return;
     }
-    setNotice("Undo successful.");
+    setNotice("悔棋成功。");
   });
 });
 
@@ -282,11 +282,11 @@ boardCanvas.addEventListener("click", (event) => {
     return;
   }
   if (state.winner !== 0) {
-    setNotice("Game is over. Press Restart.");
+    setNotice("对局已经结束，请点击“重新开局”。");
     return;
   }
   if (state.currentTurn !== state.myColor) {
-    setNotice("Please wait for your turn.");
+    setNotice("还没轮到你，请稍候。");
     return;
   }
 
@@ -312,7 +312,7 @@ boardCanvas.addEventListener("click", (event) => {
 
   socket.emit("place_stone", { row, col }, (response) => {
     if (!response?.ok) {
-      setNotice(response?.error || "Invalid move.");
+      setNotice(response?.error || "落子无效。");
     }
   });
 });
