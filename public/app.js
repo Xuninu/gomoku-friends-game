@@ -22,7 +22,17 @@ const leaveBtn = document.getElementById("leaveBtn");
 const blackPlayer = document.getElementById("blackPlayer");
 const whitePlayer = document.getElementById("whitePlayer");
 const statusText = document.getElementById("statusText");
+const restartHint = document.getElementById("restartHint");
 const noticeText = document.getElementById("noticeText");
+const previewActions = document.getElementById("previewActions");
+const previewText = document.getElementById("previewText");
+const confirmMoveBtn = document.getElementById("confirmMoveBtn");
+const cancelPreviewBtn = document.getElementById("cancelPreviewBtn");
+const resultModal = document.getElementById("resultModal");
+const resultTitle = document.getElementById("resultTitle");
+const resultMessage = document.getElementById("resultMessage");
+const closeResultBtn = document.getElementById("closeResultBtn");
+const restartFromResultBtn = document.getElementById("restartFromResultBtn");
 const boardCanvas = document.getElementById("boardCanvas");
 const ctx = boardCanvas.getContext("2d");
 
@@ -36,7 +46,11 @@ const state = {
   currentTurn: 1,
   winner: 0,
   players: [],
-  lastMove: null
+  lastMove: null,
+  restartVotes: [],
+  pendingMove: null,
+  hoverMove: null,
+  lastAnnouncedWinner: 0
 };
 
 function colorName(color) {
@@ -52,6 +66,14 @@ function colorName(color) {
 function playerName() {
   const value = nameInput.value.trim();
   return value || "玩家";
+}
+
+function indexOfCell(row, col) {
+  return row * BOARD_SIZE + col;
+}
+
+function sameCell(a, b) {
+  return Boolean(a && b && a.row === b.row && a.col === b.col);
 }
 
 function setStartError(message = "") {
@@ -71,9 +93,10 @@ function updateShareLink() {
 function updatePlayersUI() {
   const black = state.players.find((p) => p.color === 1);
   const white = state.players.find((p) => p.color === 2);
+  const mySuffix = "（你）";
 
-  blackPlayer.textContent = `黑棋：${black ? black.name : "等待加入..."}`;
-  whitePlayer.textContent = `白棋：${white ? white.name : "等待加入..."}`;
+  blackPlayer.textContent = `黑棋：${black ? black.name : "等待加入..."}${state.myColor === 1 && black ? mySuffix : ""}`;
+  whitePlayer.textContent = `白棋：${white ? white.name : "等待加入..."}${state.myColor === 2 && white ? mySuffix : ""}`;
 }
 
 function updateStatusUI() {
@@ -84,16 +107,43 @@ function updateStatusUI() {
   }
 
   if (state.players.length < 2) {
-    statusText.textContent = "等待另一位玩家加入房间...";
+    statusText.textContent = `你执${colorName(state.myColor)}，等待另一位玩家加入房间...`;
     return;
   }
 
   const turnLabel = colorName(state.currentTurn);
   if (state.currentTurn === state.myColor) {
-    statusText.textContent = `轮到你落子（${turnLabel}）`;
+    statusText.textContent = `轮到你落子（${turnLabel}）。先点击棋盘预览，再确认落子。`;
   } else {
-    statusText.textContent = `对手回合（${turnLabel}）`;
+    statusText.textContent = `对手回合（${turnLabel}），请稍候。`;
   }
+}
+
+function updateRestartUI() {
+  const votes = Array.isArray(state.restartVotes) ? state.restartVotes : [];
+  const voted = votes.some((vote) => vote.color === state.myColor);
+
+  restartBtn.disabled = state.players.length >= 2 && voted;
+  restartBtn.textContent = voted ? "等待对方确认" : "重新开局";
+
+  if (votes.length === 0 || state.players.length < 2) {
+    restartHint.textContent = "";
+    return;
+  }
+
+  const names = votes.map((vote) => `${vote.name}（${colorName(vote.color)}）`).join("、");
+  restartHint.textContent = `重新开局确认中：${names} 已同意。`;
+}
+
+function updatePreviewUI() {
+  if (!state.pendingMove) {
+    previewActions.classList.add("hidden");
+    previewText.textContent = "";
+    return;
+  }
+
+  previewActions.classList.remove("hidden");
+  previewText.textContent = `已预览：第 ${state.pendingMove.row + 1} 行，第 ${state.pendingMove.col + 1} 列`;
 }
 
 function drawBoard() {
@@ -140,7 +190,7 @@ function drawBoard() {
 function drawPieces() {
   for (let row = 0; row < BOARD_SIZE; row += 1) {
     for (let col = 0; col < BOARD_SIZE; col += 1) {
-      const value = state.board[row * BOARD_SIZE + col];
+      const value = state.board[indexOfCell(row, col)];
       if (!value) {
         continue;
       }
@@ -168,6 +218,43 @@ function drawPieces() {
   }
 }
 
+function drawGhostStone(move, alpha, ringColor) {
+  if (!move || !state.myColor || state.board[indexOfCell(move.row, move.col)] !== 0) {
+    return;
+  }
+
+  const x = PADDING + move.col * CELL_SIZE;
+  const y = PADDING + move.row * CELL_SIZE;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = state.myColor === 1 ? "#101010" : "#ffffff";
+  ctx.beginPath();
+  ctx.arc(x, y, 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = ringColor;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.arc(x, y, 20, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawMovePreview() {
+  if (state.pendingMove) {
+    drawGhostStone(state.pendingMove, 0.62, "rgba(188, 52, 35, 0.82)");
+    return;
+  }
+
+  if (canInteractWithBoard(false)) {
+    drawGhostStone(state.hoverMove, 0.28, "rgba(54, 94, 74, 0.54)");
+  }
+}
+
 function drawLastMoveMarker() {
   if (!state.lastMove) {
     return;
@@ -186,8 +273,11 @@ function drawLastMoveMarker() {
 function render() {
   updatePlayersUI();
   updateStatusUI();
+  updateRestartUI();
+  updatePreviewUI();
   drawBoard();
   drawPieces();
+  drawMovePreview();
   drawLastMoveMarker();
 }
 
@@ -203,6 +293,149 @@ function leaveGame() {
   window.location.href = window.location.pathname;
 }
 
+function clearMovePreview() {
+  state.pendingMove = null;
+  state.hoverMove = null;
+}
+
+function canInteractWithBoard(showMessage = true) {
+  if (!state.roomId) {
+    return false;
+  }
+  if (state.players.length < 2) {
+    if (showMessage) {
+      setNotice("等待另一位玩家加入后才能落子。");
+    }
+    return false;
+  }
+  if (state.winner !== 0) {
+    if (showMessage) {
+      setNotice("对局已经结束，需要双方确认后才能重新开局。");
+    }
+    return false;
+  }
+  if (state.currentTurn !== state.myColor) {
+    if (showMessage) {
+      setNotice("还没轮到你，请稍候。");
+    }
+    return false;
+  }
+  return true;
+}
+
+function getCellFromPointer(event) {
+  const rect = boardCanvas.getBoundingClientRect();
+  const scaleX = boardCanvas.width / rect.width;
+  const scaleY = boardCanvas.height / rect.height;
+  const x = (event.clientX - rect.left) * scaleX;
+  const y = (event.clientY - rect.top) * scaleY;
+
+  const col = Math.round((x - PADDING) / CELL_SIZE);
+  const row = Math.round((y - PADDING) / CELL_SIZE);
+
+  if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) {
+    return null;
+  }
+
+  const canvasX = PADDING + col * CELL_SIZE;
+  const canvasY = PADDING + row * CELL_SIZE;
+  const distance = Math.hypot(x - canvasX, y - canvasY);
+  if (distance > CELL_SIZE * 0.45) {
+    return null;
+  }
+
+  return { row, col };
+}
+
+function canPlaceAt(row, col, showMessage = true) {
+  if (!canInteractWithBoard(showMessage)) {
+    return false;
+  }
+
+  if (state.board[indexOfCell(row, col)] !== 0) {
+    if (showMessage) {
+      setNotice("该位置已有棋子，请选择其他位置。");
+    }
+    return false;
+  }
+
+  return true;
+}
+
+function setPendingMove(move) {
+  if (!canPlaceAt(move.row, move.col)) {
+    clearMovePreview();
+    render();
+    return;
+  }
+
+  state.pendingMove = move;
+  state.hoverMove = null;
+  setNotice(`已预览第 ${move.row + 1} 行第 ${move.col + 1} 列。点击“确认落子”或再次点击该位置即可落子。`);
+  render();
+}
+
+function confirmPendingMove() {
+  if (!state.pendingMove) {
+    return;
+  }
+
+  const move = state.pendingMove;
+  if (!canPlaceAt(move.row, move.col)) {
+    clearMovePreview();
+    render();
+    return;
+  }
+
+  socket.emit("place_stone", { row: move.row, col: move.col }, (response) => {
+    if (!response?.ok) {
+      setNotice(response?.error || "落子无效。");
+      clearMovePreview();
+      render();
+      return;
+    }
+    setNotice("落子已确认。");
+    clearMovePreview();
+    render();
+  });
+}
+
+function showResultModal(winner) {
+  const winnerName = colorName(winner);
+  const isMe = winner === state.myColor;
+
+  resultTitle.textContent = isMe ? "你赢了！" : `${winnerName}获胜`;
+  resultMessage.textContent = isMe
+    ? "漂亮，五子连珠！本局已经结束，重新开局需要双方都确认。"
+    : `${winnerName}已经五子连珠。本局已经结束，重新开局需要双方都确认。`;
+  resultModal.classList.remove("hidden");
+}
+
+function hideResultModal() {
+  resultModal.classList.add("hidden");
+}
+
+function requestRestart() {
+  if (restartBtn.disabled) {
+    return;
+  }
+
+  socket.emit("restart_game", {}, (response) => {
+    if (!response?.ok) {
+      setNotice(response?.error || "重新开局申请失败。");
+      return;
+    }
+
+    if (response.restarted) {
+      hideResultModal();
+      setNotice("双方已确认，已重新开局。");
+      return;
+    }
+
+    setNotice("已发送重新开局申请，等待对方确认。");
+  });
+}
+
 function handleJoinResponse(response) {
   if (!response?.ok) {
     setStartError(response?.error || "加入房间失败。");
@@ -211,8 +444,10 @@ function handleJoinResponse(response) {
 
   state.roomId = response.roomId;
   state.myColor = response.color;
+  state.lastAnnouncedWinner = 0;
+  clearMovePreview();
   setStartError("");
-  setNotice(`你已进入房间，执${colorName(state.myColor)}。`);
+  setNotice(`你已进入房间，随机阵营为${colorName(state.myColor)}。`);
   enterGame();
 }
 
@@ -250,12 +485,9 @@ copyBtn.addEventListener("click", async () => {
   }
 });
 
-restartBtn.addEventListener("click", () => {
-  socket.emit("restart_game", {}, (response) => {
-    if (!response?.ok) {
-      setNotice(response?.error || "重新开局失败。");
-    }
-  });
+restartBtn.addEventListener("click", requestRestart);
+restartFromResultBtn.addEventListener("click", () => {
+  requestRestart();
 });
 
 undoBtn.addEventListener("click", () => {
@@ -269,6 +501,8 @@ undoBtn.addEventListener("click", () => {
       setNotice(response?.error || "悔棋失败。");
       return;
     }
+    clearMovePreview();
+    hideResultModal();
     setNotice("悔棋成功。");
   });
 });
@@ -277,44 +511,85 @@ leaveBtn.addEventListener("click", () => {
   leaveGame();
 });
 
-boardCanvas.addEventListener("click", (event) => {
-  if (!state.roomId) {
-    return;
-  }
-  if (state.winner !== 0) {
-    setNotice("对局已经结束，请点击“重新开局”。");
-    return;
-  }
-  if (state.currentTurn !== state.myColor) {
-    setNotice("还没轮到你，请稍候。");
-    return;
-  }
+confirmMoveBtn.addEventListener("click", confirmPendingMove);
+cancelPreviewBtn.addEventListener("click", () => {
+  clearMovePreview();
+  setNotice("已取消落子预览。");
+  render();
+});
 
-  const rect = boardCanvas.getBoundingClientRect();
-  const scaleX = boardCanvas.width / rect.width;
-  const scaleY = boardCanvas.height / rect.height;
-  const x = (event.clientX - rect.left) * scaleX;
-  const y = (event.clientY - rect.top) * scaleY;
-
-  const col = Math.round((x - PADDING) / CELL_SIZE);
-  const row = Math.round((y - PADDING) / CELL_SIZE);
-
-  if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) {
-    return;
+closeResultBtn.addEventListener("click", hideResultModal);
+resultModal.addEventListener("click", (event) => {
+  if (event.target === resultModal) {
+    hideResultModal();
   }
+});
 
-  const canvasX = PADDING + col * CELL_SIZE;
-  const canvasY = PADDING + row * CELL_SIZE;
-  const distance = Math.hypot(x - canvasX, y - canvasY);
-  if (distance > CELL_SIZE * 0.45) {
-    return;
-  }
-
-  socket.emit("place_stone", { row, col }, (response) => {
-    if (!response?.ok) {
-      setNotice(response?.error || "落子无效。");
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    if (!resultModal.classList.contains("hidden")) {
+      hideResultModal();
+      return;
     }
-  });
+    if (state.pendingMove) {
+      clearMovePreview();
+      setNotice("已取消落子预览。");
+      render();
+    }
+  }
+});
+
+boardCanvas.addEventListener("mousemove", (event) => {
+  if (state.pendingMove || !canInteractWithBoard(false)) {
+    if (state.hoverMove) {
+      state.hoverMove = null;
+      render();
+    }
+    return;
+  }
+
+  const move = getCellFromPointer(event);
+  if (!move || state.board[indexOfCell(move.row, move.col)] !== 0) {
+    if (state.hoverMove) {
+      state.hoverMove = null;
+      render();
+    }
+    return;
+  }
+
+  if (!sameCell(state.hoverMove, move)) {
+    state.hoverMove = move;
+    render();
+  }
+});
+
+boardCanvas.addEventListener("mouseleave", () => {
+  if (state.hoverMove) {
+    state.hoverMove = null;
+    render();
+  }
+});
+
+boardCanvas.addEventListener("click", (event) => {
+  if (!canInteractWithBoard()) {
+    return;
+  }
+
+  const move = getCellFromPointer(event);
+  if (!move) {
+    return;
+  }
+
+  if (!canPlaceAt(move.row, move.col)) {
+    return;
+  }
+
+  if (sameCell(state.pendingMove, move)) {
+    confirmPendingMove();
+    return;
+  }
+
+  setPendingMove(move);
 });
 
 socket.on("room_state", (roomState) => {
@@ -323,10 +598,28 @@ socket.on("room_state", (roomState) => {
   state.winner = roomState.winner;
   state.players = roomState.players;
   state.lastMove = roomState.lastMove;
+  state.restartVotes = roomState.restartVotes || [];
   if (!state.roomId) {
     state.roomId = roomState.roomId;
   }
+
+  if (state.pendingMove && !canPlaceAt(state.pendingMove.row, state.pendingMove.col, false)) {
+    clearMovePreview();
+  }
+
+  if (state.winner === 0) {
+    state.lastAnnouncedWinner = 0;
+    hideResultModal();
+  }
+
   render();
+
+  if (state.winner !== 0 && state.winner !== state.lastAnnouncedWinner) {
+    state.lastAnnouncedWinner = state.winner;
+    clearMovePreview();
+    render();
+    showResultModal(state.winner);
+  }
 });
 
 socket.on("notice", (message) => {

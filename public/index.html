@@ -9,8 +9,9 @@
   <body>
     <main class="page">
       <section class="panel start-panel" id="startPanel">
+        <div class="hero-mark">联机五子棋</div>
         <h1>五子棋联机对战</h1>
-        <p class="subtitle">创建房间后把链接发给好友，好友打开网页输入同一房间码即可开局。</p>
+        <p class="subtitle">创建房间后把链接发给好友，好友打开网页输入同一房间码即可开局。双方阵营会随机分配，黑棋先手。</p>
 
         <label class="field">
           <span>你的昵称</span>
@@ -53,13 +54,32 @@
         </div>
 
         <p id="statusText" class="status"></p>
+        <p id="restartHint" class="restart-hint"></p>
         <p id="noticeText" class="message"></p>
+
+        <div id="previewActions" class="preview-actions hidden">
+          <span id="previewText" class="preview-text">已选择一个落点</span>
+          <button id="confirmMoveBtn" class="btn btn-primary">确认落子</button>
+          <button id="cancelPreviewBtn" class="btn">取消预览</button>
+        </div>
 
         <div class="board-wrap">
           <canvas id="boardCanvas" width="620" height="620"></canvas>
         </div>
       </section>
     </main>
+
+    <div id="resultModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+      <div class="modal-card">
+        <p class="modal-kicker">对局结果</p>
+        <h2 id="resultTitle">胜负已分</h2>
+        <p id="resultMessage">本局已经结束。</p>
+        <div class="modal-actions">
+          <button id="closeResultBtn" class="btn">知道了</button>
+          <button id="restartFromResultBtn" class="btn btn-primary">申请重新开局</button>
+        </div>
+      </div>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="/app.js"></script>

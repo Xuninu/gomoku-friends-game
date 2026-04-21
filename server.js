@@ -40,6 +40,13 @@ function createEmptyBoard() {
 }
 
 function buildRoomState(room) {
+  const restartVotes = room.players
+    .filter((player) => room.restartVotes.has(player.socketId))
+    .map((player) => ({
+      name: player.name,
+      color: player.color
+    }));
+
   return {
     roomId: room.id,
     board: room.board,
@@ -49,7 +56,8 @@ function buildRoomState(room) {
       name: player.name,
       color: player.color
     })),
-    lastMove: room.lastMove
+    lastMove: room.lastMove,
+    restartVotes
   };
 }
 
@@ -117,6 +125,24 @@ function findPlayer(room, socketId) {
   return room.players.find((player) => player.socketId === socketId);
 }
 
+function chooseColor(room) {
+  if (room.players.length === 0) {
+    return Math.random() < 0.5 ? 1 : 2;
+  }
+
+  const usedColors = new Set(room.players.map((player) => player.color));
+  return usedColors.has(1) ? 2 : 1;
+}
+
+function resetGame(room) {
+  room.board = createEmptyBoard();
+  room.currentTurn = 1;
+  room.winner = 0;
+  room.lastMove = null;
+  room.moveHistory = [];
+  room.restartVotes.clear();
+}
+
 function emitRoomState(roomId) {
   const room = rooms.get(roomId);
   if (!room) {
@@ -144,6 +170,7 @@ function removePlayerFromRoom(socket) {
   if (playerIndex >= 0) {
     room.players.splice(playerIndex, 1);
   }
+  room.restartVotes.delete(socket.id);
 
   socket.data.roomId = null;
   socket.data.color = null;
@@ -169,19 +196,16 @@ function joinRoom(socket, roomId, name) {
 
   removePlayerFromRoom(socket);
 
-  const usedColors = new Set(room.players.map((player) => player.color));
-  const color = usedColors.has(1) ? 2 : 1;
-
   const player = {
     socketId: socket.id,
     name: sanitizeName(name),
-    color
+    color: chooseColor(room)
   };
 
   room.players.push(player);
   socket.join(roomId);
   socket.data.roomId = roomId;
-  socket.data.color = color;
+  socket.data.color = player.color;
 
   io.to(roomId).emit("notice", `${player.name} 已加入房间。`);
   emitRoomState(roomId);
@@ -189,7 +213,7 @@ function joinRoom(socket, roomId, name) {
   return {
     ok: true,
     roomId,
-    color
+    color: player.color
   };
 }
 
@@ -203,7 +227,8 @@ io.on("connection", (socket) => {
       currentTurn: 1,
       winner: 0,
       lastMove: null,
-      moveHistory: []
+      moveHistory: [],
+      restartVotes: new Set()
     };
     rooms.set(roomId, room);
 
@@ -237,6 +262,11 @@ io.on("connection", (socket) => {
       return;
     }
 
+    if (room.players.length < MAX_PLAYERS) {
+      callback?.({ ok: false, error: "等待另一位玩家加入后才能落子。" });
+      return;
+    }
+
     if (room.winner !== 0) {
       callback?.({ ok: false, error: "对局已结束，请重新开局。" });
       return;
@@ -265,6 +295,7 @@ io.on("connection", (socket) => {
     room.board[idx] = player.color;
     room.lastMove = move;
     room.moveHistory.push(move);
+    room.restartVotes.clear();
 
     if (isWinningMove(room.board, row, col, player.color)) {
       room.winner = player.color;
@@ -284,14 +315,30 @@ io.on("connection", (socket) => {
     }
 
     const room = rooms.get(roomId);
-    room.board = createEmptyBoard();
-    room.currentTurn = 1;
-    room.winner = 0;
-    room.lastMove = null;
-    room.moveHistory = [];
+    const player = findPlayer(room, socket.id);
+    if (!player) {
+      callback?.({ ok: false, error: "未找到玩家信息。" });
+      return;
+    }
+
+    if (room.players.length < MAX_PLAYERS) {
+      callback?.({ ok: false, error: "需要双方都在房间内，才能确认重新开局。" });
+      return;
+    }
+
+    room.restartVotes.add(socket.id);
+
+    if (room.restartVotes.size < MAX_PLAYERS) {
+      emitRoomState(roomId);
+      io.to(roomId).emit("notice", `${player.name} 已申请重新开局，等待对方确认。`);
+      callback?.({ ok: true, pending: true });
+      return;
+    }
+
+    resetGame(room);
     emitRoomState(roomId);
-    io.to(roomId).emit("notice", "已重新开局。");
-    callback?.({ ok: true });
+    io.to(roomId).emit("notice", "双方已确认，已重新开局。黑棋先手。");
+    callback?.({ ok: true, restarted: true });
   });
 
   socket.on("undo_move", (payload, callback) => {
@@ -325,6 +372,7 @@ io.on("connection", (socket) => {
     room.winner = 0;
     room.currentTurn = lastMove.color;
     room.lastMove = room.moveHistory.length > 0 ? room.moveHistory[room.moveHistory.length - 1] : null;
+    room.restartVotes.clear();
 
     emitRoomState(roomId);
     io.to(roomId).emit("notice", `${player.name} 发起了悔棋。`);
